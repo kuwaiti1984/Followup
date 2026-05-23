@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="FOLLOWUP"/>
+<meta name="theme-color" content="#010409"/>
+<title>FOLLOWUP</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230d1117'/><text y='.9em' font-size='80' x='10'>📋</text></svg>"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#010409;color:#e6edf3;min-height:100vh;overscroll-behavior:none;}
+input,select,button{font-family:inherit;}
+select option{background:#161b22;color:#e6edf3;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:#0d1117;}
+::-webkit-scrollbar-thumb{background:#30363d;border-radius:4px;}
+.page{min-height:100vh;}
+.inp{width:100%;background:#161b22;border:1px solid #30363d;border-radius:8px;color:#e6edf3;padding:9px 12px;font-size:14px;outline:none;box-sizing:border-box;}
+.inp:focus{border-color:#00c6ff55;}
+.btn{border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:14px;padding:10px 18px;}
+.btn-primary{background:linear-gradient(135deg,#00c6ff,#f7971e);color:#000;}
+.btn-ghost{background:#21262d;color:#8b949e;border:1px solid #30363d;}
+.btn-danger{background:#21262d;border:1px solid #f8514944;color:#f85149;}
+.btn-sm{padding:5px 11px;font-size:12px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;}
+.overlay{position:fixed;inset:0;background:#000c;display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px;}
+.mbox{background:#0d1117;border:1px solid #30363d;border-radius:16px;width:100%;max-width:620px;max-height:90vh;overflow:auto;box-shadow:0 24px 80px #0009;}
+.mhead{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #21262d;}
+.mbody{padding:18px 20px 22px;}
+.fld{margin-bottom:13px;}
+.fld label{display:block;color:#8b949e;font-size:12px;margin-bottom:5px;}
+.badge{display:inline-block;border-radius:6px;padding:2px 10px;font-size:12px;font-weight:700;white-space:nowrap;}
+.topbar{background:#0d1117;border-bottom:1px solid #21262d;padding:12px 14px;position:sticky;top:0;z-index:100;}
+.stat{background:#0d1117;border-radius:12px;padding:14px;text-align:center;}
+.sysb{border-radius:16px;padding:20px 16px;cursor:pointer;width:100%;border:none;transition:border-color .2s;}
+.pc{background:#0d1117;border-radius:12px;padding:14px;margin-bottom:12px;}
+.urow{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #21262d;}
+.urow:last-child{border-bottom:none;}
+.ltog{display:flex;background:#161b22;border-radius:8px;border:1px solid #30363d;overflow:hidden;}
+.lbtn{padding:5px 12px;border:none;cursor:pointer;font-weight:800;font-size:12px;}
+.ibanner{background:linear-gradient(135deg,#0d1117,#161b22);border:1px solid #00c6ff44;border-radius:12px;padding:14px;margin:14px;display:flex;align-items:center;gap:12px;}
+.loader{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.pulse{animation:pulse 1.2s ease-in-out infinite;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#21262d;border:1px solid #30363d;color:#e6edf3;padding:10px 20px;border-radius:10px;font-size:13px;z-index:9999;white-space:nowrap;box-shadow:0 8px 32px #0008;transition:opacity .3s;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+import{createElement as h,useState,useEffect,Fragment}from'https://esm.sh/react@18';
+import{createRoot}from'https://esm.sh/react-dom@18/client';
+import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import{getDatabase,ref,set,get,onValue,off}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+// ── i18n ──────────────────────────────────────────────────────────────────────
+const T={
+  ar:{dir:'rtl',appSub:'متتبع إجراءات القطع',login:'دخول',username:'اسم المستخدم',
+    password:'كلمة المرور',selectUser:'— اختر المستخدم —',wrongCreds:'اسم المستخدم أو كلمة المرور غير صحيحة',
+    logout:'خروج',reports:'📊 التقارير',newSystem:'+ منظومة جديدة',availSystems:'المنظومات المتاحة',
+    totalParts:'إجمالي القطع',systems:'المنظومات',inWorkshop:'بالورشة',repaired:'تم التصليح',
+    parts:'قطعة',addPart:'+ إضافة',search:'بحث...',back:'← رجوع',editPart:'تعديل القطعة',
+    addPartTitle:'إضافة قطعة',save:'حفظ ✓',cancel:'إلغاء',partNumber:'رقم القطعة',
+    condition:'الحالة',serial:'الرقم التسلسلي',partName:'اسم القطعة',partType:'نوع القطعة',location:'مكان القطعة',
+    procStatus:'الإجراء الحالي',editor:'اسم المعدِّل',editDate:'تاريخ آخر تعديل',
+    reportTitle:'📊 التقارير',allSystems:'الكل',system:'المنظومة',reportResults:'نتائج التقرير',
+    noResults:'لا توجد نتائج',dlExcel:'📥 Excel',dlPdf:'🖨️ PDF',
+    addSystemTitle:'إضافة منظومة جديدة',nameAr:'الاسم بالعربي',nameEn:'الاسم بالإنجليزي',
+    emoji:'الرمز',color:'اللون',addBtn:'إضافة ✓',
+    noPartsEditor:'لا توجد قطع. اضغط + إضافة.',noPartsViewer:'لا توجد قطع مسجلة.',
+    partNumPH:'مثال: PT-2024-001',serialPH:'Serial Number',
+    installTitle:'تثبيت التطبيق',installMsg:'أضف FOLLOWUP لشاشتك الرئيسية',
+    installBtn:'تثبيت',installIos:'افتح في Safari ← اضغط ⎙ ← إضافة للشاشة الرئيسية',
+    saving:'جاري الحفظ',saved:'تم الحفظ',notes:'📝 ملاحظات عامة',notesPlaceholder:'اكتب ملاحظاتك هنا...',
+    adminPanel:'🖥️ لوحة التحكم',syncNow:'🔄 مزامنة',syncOk:'✅ تمت المزامنة',
+    backupBtn:'⬇️ نسخة احتياطية',restoreBtn:'⬆️ استعادة',
+    clearBtn:'🗑️ مسح البيانات',clearConfirm:'هل أنت متأكد؟ سيتم مسح جميع القطع والمنظومات والمستخدمين. لا يمكن التراجع!',
+    clearDone:'تم المسح ✓',restoreDone:'تمت الاستعادة ✓',restoreErr:'ملف غير صالح',
+    lastSync:'آخر مزامنة',connected:'🟢 متصل',
+    manageUsers:'👥 المستخدمون',addUser:'+ مستخدم جديد',editUser:'تعديل مستخدم',newUser:'مستخدم جديد',
+    userName:'اسم المستخدم',userPass:'كلمة المرور',userRole:'الصلاحية',
+    userSystem:'المنظومة المخصصة',allSystemsAccess:'جميع المنظومات',
+    confirmDel:'هل تريد حذف هذا المستخدم؟',noUsers:'لا يوجد مستخدمون بعد',
+    changePass:'🔑 تغيير كلمة المرور',newPass:'كلمة المرور الجديدة',confirmPass:'تأكيد كلمة المرور',
+    passMismatch:'كلمتا المرور غير متطابقتان',passChanged:'تم التغيير ✓',
+    passEmpty:'أدخل كلمة مرور',nameTaken:'الاسم مستخدم بالفعل',nameEmpty:'أدخل اسم المستخدم',
+    permLevels:'مستويات الصلاحيات',
+    adminDesc:'كامل الصلاحيات — جميع المنظومات',
+    editorDesc:'إضافة قطع + تقارير — منظومة محددة',
+    viewerDesc:'اطلاع + تنزيل تقارير — منظومة محددة',
+    roleLabels:{ADMIN:'مدير',EDITOR:'مُشغِّل',VIEWER:'مُطَّلِع'},
+    conditions:['قيد التنفيذ','تم الانتهاء'],
+    locations:['بالمستودع','بالخارج','بالورشة'],
+    statuses:['بانتظار الموافقة للشحن','بانتظار الموافقة للتصليح','جاري التصليح','بالانتظار لعدم وجود ربط مالي','تم التحويل إلى سكراب','تحت الفحص','التصليح على بند الكفالة'],
+    pdfTitle:'FOLLOWUP — تقرير القطع',pdfDate:(d,n)=>`تاريخ: ${d} | عدد القطع: ${n}`,
+    pdfHeaders:['المنظومة','رقم القطعة','اسم القطعة','الحالة','السيريل','النوع','المكان','الإجراء','المعدّل','التاريخ'],
+    pdfFooter:'🖨️ طباعة / حفظ PDF',
+  },
+  en:{dir:'ltr',appSub:'PARTS ACTION TRACKER',login:'Login',username:'Username',
+    password:'Password',selectUser:'— Select User —',wrongCreds:'Incorrect username or password',
+    logout:'Logout',reports:'📊 Reports',newSystem:'+ New System',availSystems:'Available Systems',
+    totalParts:'Total Parts',systems:'Systems',inWorkshop:'In Workshop',repaired:'Repaired',
+    parts:'parts',addPart:'+ Add Part',search:'Search...',back:'Back →',editPart:'Edit Part',
+    addPartTitle:'Add Part',save:'Save ✓',cancel:'Cancel',partNumber:'Part Number',
+    condition:'Condition',serial:'Serial Number',partName:'Part Name',partType:'Part Type',location:'Location',
+    procStatus:'Current Action',editor:'Modified By',editDate:'Last Modified',
+    reportTitle:'📊 Reports',allSystems:'All',system:'System',reportResults:'Report Results',
+    noResults:'No matching results',dlExcel:'📥 Excel',dlPdf:'🖨️ PDF',
+    addSystemTitle:'Add New System',nameAr:'Arabic Name',nameEn:'English Name',
+    emoji:'Icon',color:'Color',addBtn:'Add ✓',
+    noPartsEditor:'No parts yet. Press + Add Part.',noPartsViewer:'No parts registered.',
+    partNumPH:'e.g. PT-2024-001',serialPH:'Serial Number',
+    installTitle:'Install App',installMsg:'Add FOLLOWUP to your home screen',
+    installBtn:'Install',installIos:'Open Safari → tap ⎙ → Add to Home Screen',
+    saving:'Saving',saved:'Saved',notes:'📝 General Notes',notesPlaceholder:'Write your notes here...',
+    adminPanel:'🖥️ Control Panel',syncNow:'🔄 Sync',syncOk:'✅ Synced',
+    backupBtn:'⬇️ Backup',restoreBtn:'⬆️ Restore',
+    clearBtn:'🗑️ Clear Data',clearConfirm:'Are you sure? All parts, systems and users will be deleted. This cannot be undone!',
+    clearDone:'Cleared ✓',restoreDone:'Restored ✓',restoreErr:'Invalid file',
+    lastSync:'Last sync',connected:'🟢 Connected',
+    manageUsers:'👥 Users',addUser:'+ New User',editUser:'Edit User',newUser:'New User',
+    userName:'Username',userPass:'Password',userRole:'Role',
+    userSystem:'Assigned System',allSystemsAccess:'All Systems',
+    confirmDel:'Delete this user?',noUsers:'No users yet',
+    changePass:'🔑 Change Password',newPass:'New Password',confirmPass:'Confirm Password',
+    passMismatch:'Passwords do not match',passChanged:'Password changed ✓',
+    passEmpty:'Enter a password',nameTaken:'Name already taken',nameEmpty:'Enter a username',
+    permLevels:'Permission Levels',
+    adminDesc:'Full access — all systems',
+    editorDesc:'Add parts + reports — assigned system',
+    viewerDesc:'View + download reports — assigned system',
+    roleLabels:{ADMIN:'Admin',EDITOR:'Operator',VIEWER:'Viewer'},
+    conditions:['In Progress','Completed'],
+    locations:['In Warehouse','Abroad','In Workshop'],
+    statuses:['Awaiting Ship Approval','Awaiting Repair Approval','Under Repair','On Hold — No Budget','Transferred to Scrap','Under Inspection','Warranty Repair'],
+    pdfTitle:'FOLLOWUP — Parts Report',pdfDate:(d,n)=>`Date: ${d} | Total: ${n}`,
+    pdfHeaders:['System','Part No.','Part Name','Condition','Serial','Type','Location','Status','Editor','Date'],
+    pdfFooter:'🖨️ Print / Save as PDF',
+  }
+};
+
+// ── Root Admin (hardcoded, cannot be deleted) ─────────────────────────────────
+const ROOT={id:'__root__',name:'Admin',password:'Eng1984',role:'ADMIN',systemId:null,isRoot:true};
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const SYSTEMS_INIT=[
+  {id:'patriot', nameAr:'باتريوت',  nameEn:'PATRIOT',  color:'#00c6ff',icon:'🛡'},
+  {id:'skyguard',nameAr:'سكاي جارد',nameEn:'SKY GUARD',color:'#f7971e',icon:'🎯'},
+];
+const PART_TYPES=['R&R','R&R Classified'];
+const ROLE_COLORS={ADMIN:'#a371f7',EDITOR:'#3fb950',VIEWER:'#58a6ff'};
+const CC_AR={'قيد التنفيذ':'#f7971e','تم الانتهاء':'#3fb950'};
+const CC_EN={'In Progress':'#f7971e','Completed':'#3fb950'};
+
+let _id=Date.now();
+const uid=()=>String(_id++);
+const today=()=>new Date().toISOString().slice(0,10);
+const cc=(c,lang)=>(lang==='ar'?CC_AR:CC_EN)[c]||'#8b949e';
+
+// ── Firebase Config ───────────────────────────────────────────────────────────
+// *** ضع هنا بيانات Firebase الخاصة بك ***
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyD4Udt6BS02LzVfn3B1Y29yxwODInNd9w8",
+  authDomain:        "followup-rr-v1.firebaseapp.com",
+  databaseURL:       "https://followup-rr-v1-default-rtdb.firebaseio.com",
+  projectId:         "followup-rr-v1",
+  storageBucket:     "followup-rr-v1.firebasestorage.app",
+  messagingSenderId: "837467801418",
+  appId:             "1:837467801418:web:018de447ef3c72cc32e3b3",
+};
+
+// ── Firebase SDK ──────────────────────────────────────────────────────────────
+// (imported at top of module)
+
+let _fbApp,_db,_fbOk=false;
+try{
+  _fbApp=initializeApp(FIREBASE_CONFIG);
+  _db=getDatabase(_fbApp);
+  _fbOk=true;
+}catch(e){console.warn('Firebase init failed:',e);}
+
+// ── DB layer (Firebase + localStorage fallback) ───────────────────────────────
+const DB={
+  async get(k){
+    // try Firebase first
+    if(_fbOk){
+      try{
+        const snap=await get(ref(_db,'followup/'+k.replace(/:/g,'_')));
+        if(snap.exists())return snap.val();
+      }catch(e){console.warn('FB get error',e);}
+    }
+    // fallback: localStorage
+    try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}
+  },
+  async set(k,v){
+    // localStorage always (offline backup)
+    try{localStorage.setItem(k,JSON.stringify(v));}catch{}
+    // Firebase
+    if(_fbOk){
+      try{await set(ref(_db,'followup/'+k.replace(/:/g,'_')),v);}
+      catch(e){console.warn('FB set error',e);}
+    }
+  },
+  // real-time listener
+  listen(k,cb){
+    if(!_fbOk)return ()=>{};
+    const r=ref(_db,'followup/'+k.replace(/:/g,'_'));
+    onValue(r,snap=>{if(snap.exists())cb(snap.val());});
+    return ()=>off(r);
+  },
+  isOnline:()=>_fbOk,
+};
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let _tt;
+function toast(msg,color='#e6edf3'){
+  let el=document.querySelector('.toast');
+  if(!el){el=document.createElement('div');el.className='toast';document.body.appendChild(el);}
+  el.textContent=msg;el.style.color=color;el.style.opacity='1';
+  clearTimeout(_tt);_tt=setTimeout(()=>{el.style.opacity='0';},2200);
+}
+
+// ── Shared UI ─────────────────────────────────────────────────────────────────
+const LT=({lang,setLang})=>h('div',{className:'ltog'},
+  ['ar','en'].map(l=>h('button',{key:l,className:'lbtn',onClick:()=>setLang(l),
+    style:{background:lang===l?'linear-gradient(135deg,#00c6ff,#f7971e)':'transparent',
+           color:lang===l?'#000':'#8b949e'}},l==='ar'?'ع':'EN')));
+
+function Modal({title,onClose,dir='rtl',children}){
+  return h('div',{className:'overlay',onClick:e=>e.target===e.currentTarget&&onClose()},
+    h('div',{className:'mbox'},
+      h('div',{className:'mhead',dir},
+        h('h2',{style:{margin:0,color:'#e6edf3',fontSize:17}},title),
+        h('button',{onClick:onClose,style:{background:'none',border:'none',color:'#8b949e',fontSize:22,cursor:'pointer'}},'\xd7')
+      ),
+      h('div',{className:'mbody',dir},children)
+    )
+  );
+}
+const Fld=({label,children})=>h('div',{className:'fld'},h('label',null,label),children);
+const Badge=({color,children})=>h('span',{className:'badge',style:{background:color+'22',color,border:`1px solid ${color}55`}},children);
+
+// ── Install Banner ────────────────────────────────────────────────────────────
+function InstallBanner({t,dp,setDp}){
+  const isIos=/iphone|ipad|ipod/i.test(navigator.userAgent)&&!/crios/i.test(navigator.userAgent);
+  const [show,setShow]=useState(true);
+  if(!show||window.matchMedia('(display-mode: standalone)').matches)return null;
+  if(!dp&&!isIos)return null;
+  const install=async()=>{if(dp){dp.prompt();const{outcome}=await dp.userChoice;if(outcome==='accepted')setDp(null);}setShow(false);};
+  return h('div',{className:'ibanner',dir:t.dir},
+    h('span',{style:{fontSize:26,flexShrink:0}},'📲'),
+    h('div',{style:{flex:1}},
+      h('div',{style:{color:'#e6edf3',fontWeight:700,fontSize:14,marginBottom:3}},t.installTitle),
+      h('div',{style:{color:'#8b949e',fontSize:12}},isIos?t.installIos:t.installMsg)
+    ),
+    !isIos&&h('button',{className:'btn btn-primary',style:{padding:'7px 13px',fontSize:13},onClick:install},t.installBtn),
+    h('button',{onClick:()=>setShow(false),style:{background:'none',border:'none',color:'#8b949e',fontSize:18,cursor:'pointer'}},'\xd7')
+  );
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+function LoginScreen({onLogin,users,dp,setDp,rootPw}){
+  const [name,setName]=useState('');
+  const [pass,setPass]=useState('');
+  const [err,setErr]=useState('');
+  const [lang,setLang]=useState('ar');
+  const t=T[lang];
+  const effectiveRoot={...ROOT,password:rootPw};
+  const all=[effectiveRoot,...users];
+
+  const go=()=>{
+    const acc=all.find(a=>a.name===name&&a.password===pass);
+    if(acc){setErr('');onLogin(acc,lang);}else setErr(t.wrongCreds);
+  };
+
+  return h('div',{style:{minHeight:'100vh',background:'#010409',display:'flex',alignItems:'center',justifyContent:'center',padding:16}},
+    h('div',{style:{background:'#0d1117',border:'1px solid #30363d',borderRadius:20,padding:'28px 22px',maxWidth:380,width:'100%',boxShadow:'0 24px 80px #0009'},dir:t.dir},
+      h('div',{style:{display:'flex',justifyContent:'flex-end',marginBottom:14}},h(LT,{lang,setLang:l=>{setLang(l);setErr('');}})),
+      h('div',{style:{textAlign:'center',marginBottom:22}},
+        h('div',{style:{width:56,height:56,borderRadius:15,margin:'0 auto 12px',background:'linear-gradient(135deg,#00c6ff,#f7971e)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:26}},'📋'),
+        h('div',{style:{fontWeight:900,fontSize:22,letterSpacing:4,color:'#e6edf3'}},'FOLLOWUP'),
+        h('div',{style:{color:'#8b949e',fontSize:11,letterSpacing:2,marginTop:3}},t.appSub)
+      ),
+      h(Fld,{label:t.username},
+        h('select',{className:'inp',value:name,onChange:e=>setName(e.target.value)},
+          h('option',{value:''},t.selectUser),
+          all.map(a=>h('option',{key:a.id,value:a.name},a.name+(a.isRoot?' 👑':'')))
+        )
+      ),
+      h(Fld,{label:t.password},
+        h('input',{type:'password',className:'inp',value:pass,onChange:e=>setPass(e.target.value),
+          onKeyDown:e=>e.key==='Enter'&&go(),placeholder:'••••'})
+      ),
+      err&&h('div',{style:{background:'#f8514922',border:'1px solid #f8514966',borderRadius:8,padding:'8px 12px',color:'#f85149',fontSize:13,marginBottom:12}},err),
+      h('button',{className:'btn btn-primary',style:{width:'100%',padding:'12px',fontSize:15},onClick:go},`${t.login} →`),
+      // Permission legend
+      h('div',{style:{marginTop:18,borderTop:'1px solid #21262d',paddingTop:14}},
+        h('div',{style:{color:'#8b949e',fontSize:11,letterSpacing:1,marginBottom:9}},t.permLevels),
+        [{role:'ADMIN',desc:t.adminDesc},{role:'EDITOR',desc:t.editorDesc},{role:'VIEWER',desc:t.viewerDesc}].map(r=>
+          h('div',{key:r.role,style:{display:'flex',alignItems:'center',gap:8,marginBottom:6}},
+            h('span',{style:{background:ROLE_COLORS[r.role]+'22',color:ROLE_COLORS[r.role],
+              border:`1px solid ${ROLE_COLORS[r.role]}55`,borderRadius:5,padding:'1px 8px',fontSize:10,fontWeight:700,whiteSpace:'nowrap'}},
+              t.roleLabels[r.role]),
+            h('span',{style:{color:'#8b949e',fontSize:11}},r.desc)
+          )
+        )
+      ),
+      h(InstallBanner,{t,dp,setDp})
+    )
+  );
+}
+
+// ── User Management Modal ─────────────────────────────────────────────────────
+function UsersModal({users,setUsers,systems,onClose,t}){
+  const [view,setView]=useState('list');
+  const blank={name:'',password:'',role:'EDITOR',systemIds:[]};
+  const [form,setForm]=useState(blank);
+  const [err,setErr]=useState('');
+  const sf=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const allNames=[ROOT.name,...users.map(u=>u.name)];
+
+  // migrate old single systemId to array
+  const getSysIds=u=>{
+    if(Array.isArray(u.systemIds))return u.systemIds;
+    if(u.systemId)return[u.systemId];
+    return[];
+  };
+
+  const toggleSys=id=>{
+    const cur=form.systemIds||[];
+    sf('systemIds',cur.includes(id)?cur.filter(x=>x!==id):[...cur,id]);
+  };
+
+  const openEdit=acc=>{
+    setForm({name:acc.name,password:acc.password,role:acc.role,systemIds:getSysIds(acc)});
+    setErr('');setView(acc);
+  };
+  const openNew=()=>{setForm(blank);setErr('');setView('new');};
+
+  const save=()=>{
+    if(!form.name.trim()){setErr(t.nameEmpty);return;}
+    if(!form.password.trim()){setErr(t.passEmpty);return;}
+    const sysIds=form.role==='ADMIN'?[]:form.systemIds;
+    if(view==='new'){
+      if(allNames.includes(form.name.trim())){setErr(t.nameTaken);return;}
+      setUsers(u=>[...u,{id:uid(),name:form.name.trim(),password:form.password,
+        role:form.role,systemIds:sysIds,systemId:sysIds[0]||null}]);
+    } else {
+      if(form.name.trim()!==view.name&&allNames.includes(form.name.trim())){setErr(t.nameTaken);return;}
+      setUsers(u=>u.map(x=>x.id===view.id?{...x,name:form.name.trim(),password:form.password,
+        role:form.role,systemIds:sysIds,systemId:sysIds[0]||null}:x));
+    }
+    toast(t.save,'#3fb950');setView('list');
+  };
+
+  const del=acc=>{
+    if(!window.confirm(t.confirmDel))return;
+    setUsers(u=>u.filter(x=>x.id!==acc.id));
+    toast('🗑','#f85149');
+  };
+
+  // Form
+  if(view!=='list') return h(Modal,{title:view==='new'?t.newUser:t.editUser,onClose:()=>setView('list'),dir:t.dir},
+    h(Fld,{label:t.userName},h('input',{className:'inp',value:form.name,onChange:e=>sf('name',e.target.value),placeholder:t.userName})),
+    h(Fld,{label:t.userPass},h('input',{type:'text',className:'inp',value:form.password,onChange:e=>sf('password',e.target.value),placeholder:'••••'})),
+    h(Fld,{label:t.userRole},
+      h('select',{className:'inp',value:form.role,onChange:e=>sf('role',e.target.value)},
+        ['ADMIN','EDITOR','VIEWER'].map(r=>h('option',{key:r,value:r},t.roleLabels[r]))
+      )
+    ),
+    form.role!=='ADMIN'&&h(Fld,{label:t.userSystem},
+      h('div',{style:{background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:'10px 12px'}},
+        systems.map(s=>h('label',{key:s.id,style:{display:'flex',alignItems:'center',gap:10,
+          padding:'7px 0',borderBottom:'1px solid #21262d',cursor:'pointer'}},
+          h('input',{type:'checkbox',
+            checked:(form.systemIds||[]).includes(s.id),
+            onChange:()=>toggleSys(s.id),
+            style:{width:16,height:16,cursor:'pointer',accentColor:'#00c6ff'}}),
+          h('span',{style:{fontSize:20}},s.icon),
+          h('div',null,
+            h('div',{style:{color:'#e6edf3',fontSize:14,fontWeight:700}},s.nameEn),
+            h('div',{style:{color:'#8b949e',fontSize:12}},s.nameAr)
+          )
+        ))
+      )
+    ),
+    err&&h('div',{style:{color:'#f85149',fontSize:13,marginBottom:10}},err),
+    h('div',{style:{display:'flex',gap:10,justifyContent:t.dir==='rtl'?'flex-end':'flex-start',marginTop:6}},
+      h('button',{className:'btn btn-ghost',onClick:()=>setView('list')},t.cancel),
+      h('button',{className:'btn btn-primary',onClick:save},t.save)
+    )
+  );
+
+  // List
+  return h(Modal,{title:t.manageUsers,onClose,dir:t.dir},
+    h('button',{className:'btn btn-primary',style:{width:'100%',marginBottom:14},onClick:openNew},t.addUser),
+    h('div',{style:{background:'#161b22',border:'1px solid #a371f733',borderRadius:10,marginBottom:10,overflow:'hidden'}},
+      h('div',{className:'urow'},
+        h('div',{style:{fontSize:22,flexShrink:0}},'👑'),
+        h('div',{style:{flex:1}},
+          h('div',{style:{fontWeight:800,color:'#e6edf3',fontSize:15}},'Admin'),
+          h('div',{style:{color:'#8b949e',fontSize:12,marginTop:2}},'Root Administrator — '+t.allSystemsAccess)
+        ),
+        h('span',{style:{background:'#a371f722',color:'#a371f7',border:'1px solid #a371f755',
+          borderRadius:5,padding:'2px 8px',fontSize:11,fontWeight:700}},t.roleLabels.ADMIN),
+        h('span',{style:{color:'#30363d',fontSize:16,flexShrink:0}},'🔒')
+      )
+    ),
+    h('div',{style:{background:'#161b22',border:'1px solid #30363d',borderRadius:10,overflow:'hidden'}},
+      users.length===0
+        ?h('p',{style:{color:'#8b949e',textAlign:'center',padding:24,margin:0}},t.noUsers)
+        :users.map(u=>{
+          const sysIds=getSysIds(u);
+          const sysList=sysIds.map(id=>systems.find(s=>s.id===id)).filter(Boolean);
+          return h('div',{key:u.id,className:'urow'},
+            h('div',{style:{flex:1,minWidth:0}},
+              h('div',{style:{fontWeight:700,color:'#e6edf3',fontSize:14}},u.name),
+              h('div',{style:{color:'#8b949e',fontSize:12,marginTop:2}},
+                u.role==='ADMIN'?t.allSystemsAccess:
+                sysList.length===0?'—':sysList.map(s=>s.nameEn).join(' · ')
+              )
+            ),
+            h('span',{style:{background:ROLE_COLORS[u.role]+'22',color:ROLE_COLORS[u.role],
+              border:`1px solid ${ROLE_COLORS[u.role]}55`,borderRadius:5,padding:'2px 8px',fontSize:11,fontWeight:700,flexShrink:0}},
+              t.roleLabels[u.role]),
+            h('div',{style:{display:'flex',gap:6,flexShrink:0}},
+              h('button',{className:'btn btn-ghost btn-sm',onClick:()=>openEdit(u)},'✏️'),
+              h('button',{className:'btn btn-danger btn-sm',onClick:()=>del(u)},'🗑')
+            )
+          );
+        })
+    )
+  );
+}
+
+// ── Change Password ───────────────────────────────────────────────────────────
+function ChangePwModal({user,users,setUsers,rootPw,setRootPw,onClose,t}){
+  const [p1,setP1]=useState('');const [p2,setP2]=useState('');const [err,setErr]=useState('');
+  const go=()=>{
+    if(!p1){setErr(t.passEmpty);return;}
+    if(p1!==p2){setErr(t.passMismatch);return;}
+    if(user.isRoot) setRootPw(p1);
+    else setUsers(u=>u.map(x=>x.id===user.id?{...x,password:p1}:x));
+    toast(t.passChanged,'#3fb950');onClose();
+  };
+  return h(Modal,{title:t.changePass,onClose,dir:t.dir},
+    h(Fld,{label:t.newPass},h('input',{type:'password',className:'inp',value:p1,onChange:e=>setP1(e.target.value),placeholder:'••••'})),
+    h(Fld,{label:t.confirmPass},h('input',{type:'password',className:'inp',value:p2,onChange:e=>setP2(e.target.value),
+      placeholder:'••••',onKeyDown:e=>e.key==='Enter'&&go()})),
+    err&&h('div',{style:{color:'#f85149',fontSize:13,marginBottom:10}},err),
+    h('div',{style:{display:'flex',gap:10,justifyContent:t.dir==='rtl'?'flex-end':'flex-start'}},
+      h('button',{className:'btn btn-ghost',onClick:onClose},t.cancel),
+      h('button',{className:'btn btn-primary',onClick:go},t.save)
+    )
+  );
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function exXlsx(rows,systems,t){
+  import('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js').then(()=>{
+    const X=window.XLSX,hh=t.pdfHeaders;
+    const data=rows.map(p=>{const s=systems.find(x=>x.id===p.systemId);
+      return{[hh[0]]:t.dir==='rtl'?s?.nameAr:s?.nameEn,[hh[1]]:p.partNumber,[hh[2]]:p.partName||'',[hh[3]]:p.condition,
+        [hh[4]]:p.serial,[hh[5]]:p.type,[hh[6]]:p.location,[hh[7]]:p.status,[hh[8]]:p.editor,[hh[9]]:p.date};});
+    const ws=X.utils.json_to_sheet(data);ws['!cols']=[16,18,22,18,16,16,14,32,12,14].map(w=>({wch:w}));
+    const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'FOLLOWUP');X.writeFile(wb,`FOLLOWUP_${today()}.xlsx`);
+  });
+}
+function exPdf(rows,systems,t){
+  const w=window.open('','_blank');
+  const trs=rows.map(p=>{const s=systems.find(x=>x.id===p.systemId);
+    return`<tr><td>${t.dir==='rtl'?s?.nameAr||'':s?.nameEn||''}</td><td>${p.partNumber}</td>
+    <td>${p.partName||'—'}</td><td>${p.condition}</td><td>${p.serial}</td><td>${p.type}</td><td>${p.location}</td>
+    <td>${p.status}</td><td>${p.editor}</td><td>${p.date}</td></tr>`;}).join('');
+  const ths=t.pdfHeaders.map(x=>`<th>${x}</th>`).join('');
+  w.document.write(`<!DOCTYPE html><html dir="${t.dir}"><head><meta charset="UTF-8"/><title>FOLLOWUP</title>
+  <style>body{font-family:Arial,sans-serif;font-size:11px;direction:${t.dir};padding:20px}
+  h2{text-align:center;margin-bottom:4px}p.s{text-align:center;color:#666;margin:0 0 14px}
+  table{width:100%;border-collapse:collapse}th{background:#1a1a2e;color:#fff;padding:6px 5px;font-size:10px}
+  td{padding:5px;border-bottom:1px solid #ddd;font-size:10px}tr:nth-child(even) td{background:#f5f5f5}
+  @media print{button{display:none}}</style></head><body>
+  <h2>📋 ${t.pdfTitle}</h2><p class="s">${t.pdfDate(new Date().toLocaleDateString(),rows.length)}</p>
+  <table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table><br/>
+  <button onclick="window.print()" style="padding:8px 20px;background:#1a1a2e;color:#fff;border:none;border-radius:6px;cursor:pointer">${t.pdfFooter}</button>
+  </body></html>`);w.document.close();
+}
+
+// ── Reports Modal ─────────────────────────────────────────────────────────────
+function ReportsModal({parts,systems,user,onClose,t}){
+  const uSysIds=user.role==='ADMIN'?systems.map(s=>s.id):(Array.isArray(user.systemIds)?user.systemIds:user.systemId?[user.systemId]:[]);
+  const ok=user.role==='ADMIN'?systems:systems.filter(s=>uSysIds.includes(s.id));
+  const [f,setF]=useState({system:user.role==='ADMIN'?'all':user.systemId,type:'all',location:'all',status:'all',condition:'all'});
+  const sf=k=>v=>setF(x=>({...x,[k]:v}));
+  const rows=parts.filter(p=>{
+    if(!ok.find(s=>s.id===p.systemId))return false;    if(f.system!=='all'&&p.systemId!==f.system)return false;
+    if(f.type!=='all'&&p.type!==f.type)return false;
+    if(f.location!=='all'&&p.location!==f.location)return false;
+    if(f.status!=='all'&&p.status!==f.status)return false;
+    if(f.condition!=='all'&&p.condition!==f.condition)return false;
+    return true;
+  });
+  const eb=(on,col,fn,lbl)=>h('button',{onClick:fn,disabled:!on,
+    style:{flex:1,background:on?col:'#21262d',border:'none',color:on?'#fff':'#555',
+      borderRadius:8,padding:'10px',cursor:on?'pointer':'not-allowed',fontWeight:700,fontSize:13}},lbl);
+  return h(Modal,{title:t.reportTitle,onClose,dir:t.dir},
+    h('div',{className:'g2',style:{marginBottom:10}},
+      user.role==='ADMIN'&&h(Fld,{label:t.system},h('select',{className:'inp',value:f.system,onChange:e=>sf('system')(e.target.value)},
+        h('option',{value:'all'},t.allSystems),ok.map(s=>h('option',{key:s.id,value:s.id},t.dir==='rtl'?s.nameAr:s.nameEn)))),
+      h(Fld,{label:t.partType},h('select',{className:'inp',value:f.type,onChange:e=>sf('type')(e.target.value)},
+        h('option',{value:'all'},t.allSystems),PART_TYPES.map(x=>h('option',{key:x},x)))),
+      h(Fld,{label:t.location},h('select',{className:'inp',value:f.location,onChange:e=>sf('location')(e.target.value)},
+        h('option',{value:'all'},t.allSystems),t.locations.map(x=>h('option',{key:x},x)))),
+      h(Fld,{label:t.procStatus},h('select',{className:'inp',value:f.status,onChange:e=>sf('status')(e.target.value)},
+        h('option',{value:'all'},t.allSystems),t.statuses.map(x=>h('option',{key:x},x)))),
+      h(Fld,{label:t.condition},h('select',{className:'inp',value:f.condition,onChange:e=>sf('condition')(e.target.value)},
+        h('option',{value:'all'},t.allSystems),t.conditions.map(x=>h('option',{key:x},x))))
+    ),
+    h('div',{style:{display:'flex',gap:10,marginBottom:10}},
+      eb(rows.length>0,'#1d6f42',()=>exXlsx(rows,systems,t),t.dlExcel),
+      eb(rows.length>0,'#b91c1c',()=>exPdf(rows,systems,t),t.dlPdf)
+    ),
+    h('div',{style:{background:'#161b22',border:'1px solid #30363d',borderRadius:10,overflow:'hidden'}},
+      h('div',{style:{background:'#21262d',padding:'9px 14px',display:'flex',justifyContent:'space-between',color:'#8b949e',fontSize:12}},
+        h('span',null,t.reportResults),h('span',{style:{color:'#e6edf3'}},`${rows.length} ${t.parts}`)),
+      rows.length===0?h('p',{style:{color:'#8b949e',textAlign:'center',padding:24,margin:0}},t.noResults)
+        :h('div',{style:{maxHeight:300,overflow:'auto'}},rows.map(p=>{
+          const sys=systems.find(s=>s.id===p.systemId);
+          return h('div',{key:p.id,style:{padding:'10px 14px',borderBottom:'1px solid #21262d',
+            display:'grid',gridTemplateColumns:'auto 1fr auto',gap:10,alignItems:'center'}},
+            h('span',{style:{fontSize:20}},sys?.icon),
+            h('div',null,
+              h('div',{style:{color:'#e6edf3',fontWeight:700,fontSize:14}},p.partNumber+(p.partName?` — ${p.partName}`:'')),
+              h('div',{style:{color:'#8b949e',fontSize:12}},`${p.type} · ${p.location} · ${p.editor}`),
+              h('div',{style:{color:'#8b949e',fontSize:12}},p.status)
+            ),
+            h('div',{style:{textAlign:t.dir==='rtl'?'left':'right'}},
+              h('div',{style:{color:sys?.color,fontSize:12,fontWeight:700}},t.dir==='rtl'?sys?.nameAr:sys?.nameEn),
+              h('div',{style:{color:'#8b949e',fontSize:11,marginBottom:4}},p.date),
+              h(Badge,{color:cc(p.condition,t.dir==='rtl'?'ar':'en')},p.condition)
+            )
+          );
+        }))
+    )
+  );
+}
+
+// ── Part Form ─────────────────────────────────────────────────────────────────
+function PartForm({init,onSave,onCancel,color,user,t}){
+  const [f,setF]=useState(init||{partNumber:'',partName:'',condition:t.conditions[0],serial:'',
+    type:PART_TYPES[0],location:t.locations[0],status:t.statuses[0],editor:user.name,date:today()});
+  const s=(k,v)=>setF(x=>({...x,[k]:v,date:today(),editor:user.name}));
+  return h('div',null,
+    h('div',{className:'g2',style:{gap:'0 14px'}},
+      h(Fld,{label:t.partNumber},h('input',{className:'inp',value:f.partNumber,onChange:e=>s('partNumber',e.target.value),placeholder:t.partNumPH})),
+      h(Fld,{label:t.partName},h('input',{className:'inp',value:f.partName||'',onChange:e=>s('partName',e.target.value),placeholder:t.dir==='rtl'?'مثال: مضخة هيدروليكية':'e.g. Hydraulic Pump'})),
+      h(Fld,{label:t.condition},h('select',{className:'inp',value:f.condition,onChange:e=>s('condition',e.target.value)},t.conditions.map(c=>h('option',{key:c},c)))),
+      h(Fld,{label:t.serial},h('input',{className:'inp',value:f.serial,onChange:e=>s('serial',e.target.value),placeholder:t.serialPH})),
+      h(Fld,{label:t.partType},h('select',{className:'inp',value:f.type,onChange:e=>s('type',e.target.value)},PART_TYPES.map(x=>h('option',{key:x},x)))),
+      h(Fld,{label:t.location},h('select',{className:'inp',value:f.location,onChange:e=>s('location',e.target.value)},t.locations.map(x=>h('option',{key:x},x)))),
+      h(Fld,{label:t.procStatus},h('select',{className:'inp',value:f.status,onChange:e=>s('status',e.target.value)},t.statuses.map(x=>h('option',{key:x},x)))),
+      h(Fld,{label:t.editor},h('input',{className:'inp',style:{color:'#8b949e'},value:f.editor,readOnly:true})),
+      h(Fld,{label:t.editDate},h('input',{className:'inp',style:{color:'#8b949e'},value:f.date,readOnly:true}))
+    ),
+    h('div',{style:{display:'flex',gap:10,justifyContent:t.dir==='rtl'?'flex-end':'flex-start',marginTop:6}},
+      h('button',{className:'btn btn-ghost',onClick:onCancel},t.cancel),
+      h('button',{className:'btn',style:{background:color,color:'#000'},onClick:()=>onSave(f)},t.save)
+    )
+  );
+}
+
+// ── System Screen ─────────────────────────────────────────────────────────────
+function SysScreen({sys,parts,onBack,onAdd,onEdit,onDel,user,systems,allParts,t}){
+  const [showF,setShowF]=useState(false);const [ed,setEd]=useState(null);
+  const [showR,setShowR]=useState(false);const [q,setQ]=useState('');
+  const userSysIds=user.role==='ADMIN'?systems.map(s=>s.id):(Array.isArray(user.systemIds)?user.systemIds:user.systemId?[user.systemId]:[]);
+  const canEdit=user.role==='ADMIN'||(user.role==='EDITOR'&&userSysIds.includes(sys.id));
+  const canDel=user.role==='ADMIN';
+  const canRep=user.role==='ADMIN'||userSysIds.includes(sys.id);
+  const mp=parts.filter(p=>p.systemId===sys.id&&(p.partNumber.includes(q)||p.serial.includes(q)||p.condition.includes(q)));
+  const save=f=>{if(ed){onEdit({...ed,...f});setEd(null);}else onAdd({...f,id:uid(),systemId:sys.id});setShowF(false);toast(t.save,'#3fb950');};
+  const sc=s=>s.includes('جاري')||s.includes('Under Repair')?'#f7971e':s.includes('انتظار')||s.includes('Awaiting')?'#58a6ff':s.includes('ربط')||s.includes('No Budget')?'#f85149':s.includes('سكراب')||s.includes('Scrap')?'#a371f7':'#8b949e';
+  return h('div',{className:'page',dir:t.dir},
+    h('div',{style:{borderBottom:`1px solid ${sys.color}33`,background:`linear-gradient(135deg,#0d1117,${sys.color}11)`,padding:14}},
+      h('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:12}},
+        h('button',{className:'btn btn-ghost',style:{padding:'7px 12px',fontSize:13},onClick:onBack},t.back),
+        h('span',{style:{fontSize:24}},sys.icon),
+        h('div',{style:{flex:1,minWidth:0}},
+          h('div',{style:{fontWeight:900,fontSize:16,color:sys.color,letterSpacing:2}},sys.nameEn),
+          h('div',{style:{color:'#8b949e',fontSize:12}},`${sys.nameAr} · ${mp.length} ${t.parts}`)
+        ),
+        canRep&&h('button',{className:'btn btn-ghost',style:{padding:'7px 12px'},onClick:()=>setShowR(true)},'📊')
+      ),
+      h('div',{style:{display:'flex',gap:8}},
+        h('input',{className:'inp',style:{flex:1,fontSize:13},placeholder:t.search,value:q,onChange:e=>setQ(e.target.value)}),
+        canEdit&&h('button',{className:'btn',style:{background:sys.color,color:'#000',padding:'9px 14px',flexShrink:0},
+          onClick:()=>{setEd(null);setShowF(true);}},t.addPart)
+      )
+    ),
+    h('div',{style:{padding:14}},
+      mp.length===0?h('div',{style:{textAlign:'center',padding:50,color:'#8b949e'}},
+        h('div',{style:{fontSize:44,marginBottom:10}},sys.icon),h('p',null,canEdit?t.noPartsEditor:t.noPartsViewer))
+        :mp.map(p=>h('div',{key:p.id,className:'pc',style:{border:`1px solid ${sys.color}33`}},
+          h('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:10}},
+            h('div',null,
+              h('div',{style:{fontWeight:800,fontSize:15,color:sys.color}},p.partNumber),
+              p.partName&&h('div',{style:{color:'#e6edf3',fontSize:13,fontWeight:600,marginTop:2}},p.partName),
+              h('div',{style:{color:'#8b949e',fontSize:12}},`S/N: ${p.serial}`)),
+            h(Badge,{color:sys.color},p.type)
+          ),
+          h('div',{style:{fontSize:13,marginBottom:10}},
+            h('div',{style:{marginBottom:4}},h('span',{style:{color:'#8b949e'}},`${t.condition}: `),
+              h('span',{style:{color:cc(p.condition,t.dir==='rtl'?'ar':'en'),fontWeight:700}},p.condition)),
+            h('div',{style:{marginBottom:4}},h('span',{style:{color:'#8b949e'}},`${t.location}: `),p.location),
+            h('div',{style:{color:sc(p.status),fontSize:12}},p.status)
+          ),
+          h('div',{style:{borderTop:'1px solid #21262d',paddingTop:9,display:'flex',justifyContent:'space-between',alignItems:'center'}},
+            h('div',{style:{color:'#8b949e',fontSize:12}},`${p.editor} · ${p.date}`),
+            h('div',{style:{display:'flex',gap:6}},
+              canEdit&&h('button',{className:'btn btn-ghost btn-sm',onClick:()=>{setEd(p);setShowF(true);}},'✏️'),
+              canDel&&h('button',{className:'btn btn-danger btn-sm',onClick:()=>{onDel(p.id);toast('🗑','#f85149');}},'🗑')
+            )
+          )
+        ))
+    ),
+    showF&&h(Modal,{title:ed?t.editPart:`${t.addPartTitle} — ${t.dir==='rtl'?sys.nameAr:sys.nameEn}`,
+      onClose:()=>{setShowF(false);setEd(null);},dir:t.dir},
+      h(PartForm,{init:ed,color:sys.color,onSave:save,onCancel:()=>{setShowF(false);setEd(null);},user,t})),
+    showR&&h(ReportsModal,{parts:allParts,systems,user,onClose:()=>setShowR(false),t})
+  );
+}
+
+// ── Admin Control Panel Modal ─────────────────────────────────────────────────
+function AdminPanel({systems,parts,dynUsers,notes,rootPw,setSystems,setParts,setDynUsers,setNotes,onClose,t,lastSync,onSync}){
+  const [restoreErr,setRestoreErr]=useState('');
+
+  // ── Backup: download all data as JSON
+  const doBackup=()=>{
+    const data={version:2,date:new Date().toISOString(),systems,parts,users:dynUsers,notes};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`FOLLOWUP_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();URL.revokeObjectURL(a.href);
+    toast('⬇️ '+t.backupBtn,'#3fb950');
+  };
+
+  // ── Restore: upload JSON and apply
+  const doRestore=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const d=JSON.parse(ev.target.result);
+        if(!d.systems||!d.parts){setRestoreErr(t.restoreErr);return;}
+        if(!window.confirm(t.clearConfirm))return;
+        if(d.systems)setSystems(d.systems);
+        if(d.parts)setParts(d.parts);
+        if(d.users)setDynUsers(d.users);
+        if(d.notes!==undefined)setNotes(d.notes);
+        toast(t.restoreDone,'#3fb950');setRestoreErr('');onClose();
+      }catch{setRestoreErr(t.restoreErr);}
+    };
+    reader.readAsText(file);
+    e.target.value='';
+  };
+
+  // ── Clear all data
+  const doClear=()=>{
+    if(!window.confirm(t.clearConfirm))return;
+    setSystems(SYSTEMS_INIT);setParts([]);setDynUsers([]);setNotes('');
+    toast(t.clearDone,'#f85149');onClose();
+  };
+
+  const divider=h('div',{style:{height:1,background:'#21262d',margin:'16px 0'}});
+  const sec=(icon,title,children)=>h('div',{style:{marginBottom:4}},
+    h('div',{style:{color:'#8b949e',fontSize:11,letterSpacing:1,marginBottom:10,display:'flex',alignItems:'center',gap:6}},
+      h('span',null,icon),h('span',null,title)),
+    children
+  );
+
+  return h(Modal,{title:t.adminPanel,onClose,dir:t.dir},
+
+    // ── Sync status
+    sec('🌐',t.connected,
+      h('div',{style:{background:'#161b22',border:'1px solid #30363d',borderRadius:10,padding:'12px 14px',
+        display:'flex',alignItems:'center',justifyContent:'space-between'}},
+        h('div',null,
+          h('div',{style:{color:DB.isOnline()?'#3fb950':'#f85149',fontWeight:700,fontSize:13}},DB.isOnline()?t.connected:'🔴 Offline'),
+          lastSync&&h('div',{style:{color:'#8b949e',fontSize:11,marginTop:3}},`${t.lastSync}: ${lastSync}`)
+        ),
+        h('button',{className:'btn btn-ghost',style:{padding:'7px 14px',fontSize:13},onClick:onSync},t.syncNow)
+      )
+    ),
+
+    divider,
+
+    // ── Backup & Restore
+    sec('💾',t.backupBtn,
+      h('div',{style:{display:'flex',gap:10}},
+        h('button',{className:'btn btn-ghost',style:{flex:1,padding:'11px'},onClick:doBackup},t.backupBtn),
+        h('label',{style:{flex:1}},
+          h('div',{className:'btn btn-ghost',style:{padding:'11px',textAlign:'center',cursor:'pointer'}},t.restoreBtn),
+          h('input',{type:'file',accept:'.json',style:{display:'none'},onChange:doRestore})
+        )
+      ),
+      restoreErr&&h('div',{style:{color:'#f85149',fontSize:12,marginTop:8}},restoreErr)
+    ),
+
+    divider,
+
+    // ── Clear data
+    sec('🗑️',t.clearBtn,
+      h('button',{
+        onClick:doClear,
+        style:{width:'100%',background:'#f8514922',border:'1px solid #f8514966',
+          color:'#f85149',borderRadius:10,padding:'12px',cursor:'pointer',
+          fontWeight:800,fontSize:14,letterSpacing:1}
+      },t.clearBtn)
+    )
+  );
+}
+
+
+function App(){
+  const [user,setUser]=useState(null);
+  const [lang,setLang]=useState('ar');
+  const [systems,setSystems]=useState(SYSTEMS_INIT);
+  const [parts,setParts]=useState([]);
+  const [dynUsers,setDynUsers]=useState([]); // non-root users
+  const [rootPw,setRootPw]=useState(ROOT.password); // persisted root password
+  const [notes,setNotes]=useState('');
+  const [active,setActive]=useState(null);
+  const [showRep,setRep]=useState(false);
+  const [showUsers,setShowUsers]=useState(false);
+  const [showCp,setShowCp]=useState(false);
+  const [showPanel,setShowPanel]=useState(false);
+  const [lastSync,setLastSync]=useState('');
+  const [showAddSys,setAddSys]=useState(false);
+  const [newSys,setNewSys]=useState({nameAr:'',nameEn:'',color:'#a371f7',icon:'⚙️'});
+  const [loading,setLoading]=useState(true);
+  const [sv,setSv]=useState('');
+  const [dp,setDp]=useState(null);
+  const t=T[lang];
+
+  // PWA install prompt
+  useEffect(()=>{
+    const fn=e=>{e.preventDefault();setDp(e);};
+    window.addEventListener('beforeinstallprompt',fn);
+    return()=>window.removeEventListener('beforeinstallprompt',fn);
+  },[]);
+
+  // ── Load + real-time sync from Firebase ──────────────────────────────────────
+  useEffect(()=>{
+    (async()=>{
+      // initial load
+      const s=await DB.get('fu:systems');
+      const p=await DB.get('fu:parts');
+      const u=await DB.get('fu:users');
+      const rp=await DB.get('fu:rootpw');
+      const nt=await DB.get('fu:notes');
+      if(s?.length>0)setSystems(s);
+      if(p)setParts(p);
+      if(u)setDynUsers(u);
+      if(rp)setRootPw(rp);
+      if(nt)setNotes(nt);
+      setLoading(false);
+
+      // real-time listeners — any change on any device updates all others instantly
+      const unsubs=[
+        DB.listen('fu:systems', v=>{if(v?.length>0)setSystems(v);}),
+        DB.listen('fu:parts',   v=>{if(v)setParts(v);}),
+        DB.listen('fu:users',   v=>{if(v)setDynUsers(v);}),
+        DB.listen('fu:rootpw',  v=>{if(v)setRootPw(v);}),
+        DB.listen('fu:notes',   v=>{if(v!==undefined)setNotes(v);}),
+      ];
+      return ()=>unsubs.forEach(fn=>fn());
+    })();
+  },[]);
+
+  // Auto-save + track sync time
+  const save=(k,v)=>{
+    if(loading)return;
+    setSv('saving');
+    DB.set(k,v).then(()=>{
+      setSv('saved');
+      setLastSync(new Date().toLocaleTimeString());
+      setTimeout(()=>setSv(''),1500);
+    });
+  };
+  const syncNow=async()=>{
+    setSv('saving');
+    await Promise.all([
+      DB.set('fu:systems',systems),DB.set('fu:parts',parts),
+      DB.set('fu:users',dynUsers),DB.set('fu:rootpw',rootPw),DB.set('fu:notes',notes)
+    ]);
+    setSv('saved');setLastSync(new Date().toLocaleTimeString());
+    setTimeout(()=>setSv(''),1500);
+    toast(t.syncNow,'#3fb950');
+  };
+  useEffect(()=>save('fu:systems',systems),[systems,loading]);
+  useEffect(()=>save('fu:parts',parts),[parts,loading]);
+  useEffect(()=>save('fu:users',dynUsers),[dynUsers,loading]);
+  useEffect(()=>save('fu:rootpw',rootPw),[rootPw,loading]);
+  useEffect(()=>save('fu:notes',notes),[notes,loading]);
+
+  // Build effective root with current password
+  const effectiveRoot={...ROOT,password:rootPw};
+
+  if(loading)return h('div',{className:'loader'},
+    h('div',{className:'pulse',style:{width:54,height:54,borderRadius:14,background:'linear-gradient(135deg,#00c6ff,#f7971e)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24}},'📋'),
+    h('div',{style:{color:'#8b949e',fontSize:12,letterSpacing:2}},'FOLLOWUP')
+  );
+
+  if(!user)return h(LoginScreen,{onLogin:(a,l)=>{setUser(a);setLang(l);},users:dynUsers,dp,setDp,rootPw});
+
+  const addPart=p=>setParts(ps=>[...ps,p]);
+  const editPart=p=>setParts(ps=>ps.map(x=>x.id===p.id?p:x));
+  const delPart=id=>setParts(ps=>ps.filter(x=>x.id!==id));
+  const addSys=()=>{
+    if(!newSys.nameAr||!newSys.nameEn)return;
+    setSystems(s=>[...s,{...newSys,id:uid()}]);
+    setNewSys({nameAr:'',nameEn:'',color:'#a371f7',icon:'⚙️'});setAddSys(false);toast(t.addBtn,'#3fb950');
+  };
+
+  const userSysIds=user.role==='ADMIN'?systems.map(s=>s.id):(Array.isArray(user.systemIds)?user.systemIds:user.systemId?[user.systemId]:[]);
+  const visible=user.role==='ADMIN'?systems:systems.filter(s=>userSysIds.includes(s.id));
+
+  if(active){
+    const sys=systems.find(s=>s.id===active);
+    return h(SysScreen,{sys,parts,allParts:parts,systems,
+      onBack:()=>setActive(null),onAdd:addPart,onEdit:editPart,onDel:delPart,user,t});
+  }
+
+  const vp=parts.filter(p=>visible.find(s=>s.id===p.systemId));
+
+  return h('div',{className:'page',dir:t.dir},
+    // ── Top Bar
+    h('div',{className:'topbar'},
+      h('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:10}},
+        h('div',{style:{width:32,height:32,borderRadius:8,flexShrink:0,background:'linear-gradient(135deg,#00c6ff,#f7971e)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}},'📋'),
+        h('div',{style:{flex:1}},
+          h('div',{style:{fontWeight:900,fontSize:16,letterSpacing:3}},'FOLLOWUP'),
+          h('div',{style:{color:'#8b949e',fontSize:10,letterSpacing:2}},t.appSub)
+        ),
+        sv&&h('span',{style:{fontSize:11,color:sv==='saved'?'#3fb950':'#f7971e'}},sv==='saving'?'⏳':'✅'),
+        h(LT,{lang,setLang}),
+        h('div',{style:{display:'flex',alignItems:'center',gap:5,flexShrink:0}},
+          h('span',{style:{background:ROLE_COLORS[user.role]+'22',color:ROLE_COLORS[user.role],
+            border:`1px solid ${ROLE_COLORS[user.role]}55`,borderRadius:5,padding:'2px 7px',fontSize:10,fontWeight:700}},
+            user.isRoot?'👑 Admin':t.roleLabels[user.role]),
+          h('button',{onClick:()=>setShowCp(true),style:{background:'none',border:'none',
+            color:'#e6edf3',fontSize:12,fontWeight:700,cursor:'pointer',padding:'2px 4px'},title:t.changePass},
+            (user.isRoot?'Admin':user.name)+' 🔑'),
+          h('button',{className:'btn btn-ghost',style:{padding:'4px 8px',fontSize:11},onClick:()=>setUser(null)},t.logout)
+        )
+      ),
+      h('div',{style:{display:'flex',gap:8}},
+        h('button',{className:'btn btn-ghost',style:{flex:1,padding:'9px'},onClick:()=>setRep(true)},t.reports),
+        user.role==='ADMIN'&&h('button',{className:'btn btn-ghost',style:{flex:1,padding:'9px'},onClick:()=>setShowUsers(true)},t.manageUsers),
+        user.role==='ADMIN'&&h('button',{className:'btn btn-ghost',style:{flex:1,padding:'9px'},onClick:()=>setShowPanel(true)},t.adminPanel),
+        user.role==='ADMIN'&&h('button',{className:'btn btn-primary',style:{flex:1,padding:'9px'},onClick:()=>setAddSys(true)},t.newSystem)
+      )
+    ),
+
+    h(InstallBanner,{t,dp,setDp}),
+
+    // ── General Notes (Admin only)
+    user.role==='ADMIN'&&h('div',{style:{padding:'14px 14px 0'}},
+      h('div',{style:{
+        background:'#0d1117',border:'1px solid #30363d',borderRadius:12,overflow:'hidden'
+      }},
+        h('div',{style:{
+          background:'#161b22',padding:'10px 14px',
+          display:'flex',alignItems:'center',gap:8,
+          borderBottom:'1px solid #30363d'
+        }},
+          h('span',{style:{fontSize:16}},'📝'),
+          h('span',{style:{color:'#e6edf3',fontWeight:700,fontSize:14}},t.notes.replace('📝 ',''))
+        ),
+        h('textarea',{
+          value:notes,
+          onChange:e=>setNotes(e.target.value),
+          placeholder:t.notesPlaceholder,
+          style:{
+            width:'100%',minHeight:110,background:'#0d1117',
+            border:'none',outline:'none',resize:'vertical',
+            color:'#e6edf3',fontSize:14,padding:'12px 14px',
+            fontFamily:'inherit',lineHeight:1.6,boxSizing:'border-box',
+            direction:t.dir
+          }
+        })
+      )
+    ),
+
+    // ── Systems
+    h('div',{style:{padding:'0 14px 100px'}},
+      h('div',{style:{color:'#8b949e',fontSize:12,letterSpacing:3,marginBottom:12}},t.availSystems),
+      visible.map(sys=>{
+        const cnt=parts.filter(p=>p.systemId===sys.id).length;
+        return h('button',{key:sys.id,className:'sysb',
+          style:{background:`linear-gradient(135deg,#0d1117 60%,${sys.color}18)`,
+                 border:`1px solid ${sys.color}44`,marginBottom:14,
+                 textAlign:t.dir==='rtl'?'right':'left',color:'#e6edf3'},
+          onClick:()=>setActive(sys.id),
+          onMouseEnter:e=>e.currentTarget.style.borderColor=sys.color,
+          onMouseLeave:e=>e.currentTarget.style.borderColor=sys.color+'44'},
+          h('div',{style:{fontSize:36,marginBottom:8}},sys.icon),
+          h('div',{style:{fontSize:18,fontWeight:900,letterSpacing:3,color:sys.color}},sys.nameEn),
+          h('div',{style:{color:'#8b949e',fontSize:13,margin:'4px 0 12px'}},sys.nameAr),
+          h('span',{style:{background:sys.color+'22',borderRadius:8,padding:'5px 12px',
+            color:sys.color,fontWeight:700,fontSize:13}},`${cnt} ${t.parts}`)
+        );
+      })
+    ),
+
+    // ── Modals
+    showAddSys&&h(Modal,{title:t.addSystemTitle,onClose:()=>setAddSys(false),dir:t.dir},
+      h(Fld,{label:t.nameAr},h('input',{className:'inp',value:newSys.nameAr,onChange:e=>setNewSys(n=>({...n,nameAr:e.target.value})),placeholder:'مثال: هوك'})),
+      h(Fld,{label:t.nameEn},h('input',{className:'inp',value:newSys.nameEn,onChange:e=>setNewSys(n=>({...n,nameEn:e.target.value})),placeholder:'HAWK'})),
+      h(Fld,{label:t.emoji},h('input',{className:'inp',value:newSys.icon,onChange:e=>setNewSys(n=>({...n,icon:e.target.value}))})),
+      h(Fld,{label:t.color},h('input',{type:'color',className:'inp',style:{height:40,padding:4},value:newSys.color,onChange:e=>setNewSys(n=>({...n,color:e.target.value}))})),
+      h('div',{style:{display:'flex',gap:10,justifyContent:t.dir==='rtl'?'flex-end':'flex-start'}},
+        h('button',{className:'btn btn-ghost',onClick:()=>setAddSys(false)},t.cancel),
+        h('button',{className:'btn btn-primary',onClick:addSys},t.addBtn)
+      )
+    ),
+    showUsers&&h(UsersModal,{users:dynUsers,setUsers:setDynUsers,systems,onClose:()=>setShowUsers(false),t}),
+    showCp&&h(ChangePwModal,{user,users:dynUsers,setUsers:setDynUsers,rootPw,setRootPw,onClose:()=>setShowCp(false),t}),
+    showPanel&&h(AdminPanel,{systems,parts,dynUsers,notes,rootPw,setSystems,setParts,setDynUsers,setNotes,
+      onClose:()=>setShowPanel(false),t,lastSync,onSync:syncNow}),
+    showRep&&h(ReportsModal,{parts,systems,user,onClose:()=>setRep(false),t})
+  );
+}
+
+createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>
